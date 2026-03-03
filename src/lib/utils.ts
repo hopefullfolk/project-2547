@@ -91,3 +91,9 @@ export function getInitials(name: string): string {
 export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ')
 }
+export function formatDatetime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit"
+  })
+}

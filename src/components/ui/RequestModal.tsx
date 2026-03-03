@@ -2,11 +2,11 @@ import { useState, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Upload, FileText, Trash2, AlertCircle } from 'lucide-react'
+import { X, Upload, FileText, Trash2, AlertCircle, CheckCircle } from 'lucide-react'
 import Stepper, { Step } from './Stepper'
 import { requestService } from '../../features/request/request.service'
+import { useAuth } from '../../context/AuthContext'
 
 /* ─── Schema ─── */
 
@@ -119,9 +119,7 @@ function FileUploadCard({
   onRemove: () => void
 }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      onFileChange(e.target.files[0])
-    }
+    if (e.target.files?.[0]) onFileChange(e.target.files[0])
     e.target.value = ''
   }
 
@@ -135,11 +133,8 @@ function FileUploadCard({
             <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0"
-        >
+        <button type="button" onClick={onRemove}
+          className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
@@ -151,12 +146,7 @@ function FileUploadCard({
       <Upload className="w-6 h-6 text-muted-foreground/60 mb-2" />
       <span className="text-sm font-medium text-foreground">{label}</span>
       <span className="text-xs text-muted-foreground/60 mt-1">{description}</span>
-      <input
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
-        className="hidden"
-        onChange={handleChange}
-      />
+      <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleChange} />
     </label>
   )
 }
@@ -166,26 +156,24 @@ function FileUploadCard({
 interface RequestModalProps {
   isOpen: boolean
   onClose: () => void
+  onCheckStatus?: () => void
 }
 
-export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
-  const navigate = useNavigate()
+export default function RequestModal({ isOpen, onClose, onCheckStatus }: RequestModalProps) {
+  const { user } = useAuth()
   const [admissionLetter, setAdmissionLetter] = useState<File | null>(null)
   const [feeInvoice, setFeeInvoice] = useState<File | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    trigger,
-    reset,
-    formState: { errors },
-  } = useForm<FormData>({
+  const { register, handleSubmit, watch, trigger, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(requestSchema),
     mode: 'onChange',
-    defaultValues: { currency: 'NGN' },
+    defaultValues: {
+      currency: 'NGN',
+      email: user?.email ?? '',
+    },
   })
 
   const handleClose = () => {
@@ -193,10 +181,10 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
     setAdmissionLetter(null)
     setFeeInvoice(null)
     setSubmitError(null)
+    setSubmitted(false)
     onClose()
   }
 
-  /* Validate current step before allowing forward navigation */
   const validateStep = useCallback(
     async (nextStep: number, currentStep: number): Promise<boolean> => {
       if (nextStep <= currentStep) return true
@@ -207,13 +195,11 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
     [trigger]
   )
 
-  /* Submit to Supabase via requestService */
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true)
     setSubmitError(null)
 
     try {
-      // Check for duplicate submissions
       const duplicateCheck = await requestService.checkDuplicate(data.email)
       if (duplicateCheck?.isDuplicate) {
         setSubmitError('You already have an active request. Please wait for it to be reviewed before submitting another.')
@@ -221,7 +207,6 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
         return
       }
 
-      // Build the full payload matching RequestFormData type
       const payload = {
         fullName: data.fullName,
         email: data.email,
@@ -235,16 +220,16 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
         schoolAccountNumber: data.schoolAccountNumber,
         schoolSortCode: data.schoolSortCode || '',
         schoolBankName: data.schoolBankName,
-        admissionLetter: admissionLetter,
-        feeInvoice: feeInvoice,
+        admissionLetter,
+        feeInvoice,
         additionalNotes: data.additionalNotes || '',
+        userId: user?.id,
       }
 
       const result = await requestService.submitRequest(payload as any)
 
       if (result.success) {
-        handleClose()
-        navigate('/submitted')
+        setSubmitted(true)
       } else {
         setSubmitError(result.error || 'Submission failed. Please try again.')
       }
@@ -262,341 +247,196 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden">
-          {/* Backdrop */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={handleClose}
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           />
 
-          {/* Center container */}
           <div className="relative z-10 flex items-end sm:items-center justify-center min-h-full sm:p-6">
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
               className="w-full sm:max-w-2xl"
             >
-              {/* Close — desktop */}
               <div className="hidden sm:flex justify-end mb-3">
-                <button
-                  onClick={handleClose}
-                  className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-colors"
-                >
+                <button onClick={handleClose}
+                  className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Scrollable card */}
               <div className="max-h-[100dvh] sm:max-h-[82vh] overflow-y-auto scrollbar-hide sm:rounded-2xl rounded-t-2xl relative">
-                {/* Close — mobile */}
-                <button
-                  onClick={handleClose}
-                  className="sm:hidden absolute top-4 right-4 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-muted/80 hover:bg-muted text-muted-foreground transition-colors"
-                >
+                <button onClick={handleClose}
+                  className="sm:hidden absolute top-4 right-4 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-muted/80 hover:bg-muted text-muted-foreground transition-colors">
                   <X className="w-4 h-4" />
                 </button>
 
-                {/* Error banner */}
-                {submitError && (
-                  <div className="mx-6 sm:mx-10 lg:mx-14 mt-4 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-red-800">{submitError}</p>
-                      <button
-                        type="button"
-                        onClick={() => setSubmitError(null)}
-                        className="text-xs text-red-600 hover:text-red-800 mt-1 underline"
-                      >
-                        Dismiss
-                      </button>
+                {/* ── Success screen ── */}
+                {submitted ? (
+                  <div className="bg-white p-10 sm:p-14 text-center flex flex-col items-center">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-5">
+                      <CheckCircle className="w-8 h-8 text-emerald-600" />
                     </div>
+                    <h2 className="text-2xl font-serif font-bold text-primary mb-2">You're all set!</h2>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-8 max-w-sm">
+                      Your scholarship request has been received. We'll review it and notify you by email within a few days.
+                    </p>
+                    {onCheckStatus && (
+                      <button
+                        onClick={() => { handleClose(); setTimeout(onCheckStatus, 300) }}
+                        className="w-full max-w-xs h-12 bg-accent hover:bg-accent/90 text-white font-semibold rounded-xl transition-colors mb-3">
+                        Check My Request Status
+                      </button>
+                    )}
+                    <button onClick={handleClose}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                      Close
+                    </button>
                   </div>
+                ) : (
+                  <>
+                    {submitError && (
+                      <div className="mx-6 sm:mx-10 lg:mx-14 mt-4 p-4 rounded-xl bg-red-50 border border-red-200 flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-red-800">{submitError}</p>
+                          <button type="button" onClick={() => setSubmitError(null)}
+                            className="text-xs text-red-600 hover:text-red-800 mt-1 underline">Dismiss</button>
+                        </div>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSubmit(onSubmit)}>
+                      <Stepper
+                        initialStep={1}
+                        onFinalStepCompleted={() => handleSubmit(onSubmit)()}
+                        nextButtonText="Continue"
+                        backButtonText="Back"
+                        validateStep={validateStep}
+                        isSubmitting={isSubmitting}
+                      >
+                        <Step>
+                          <div className="space-y-6">
+                            <div>
+                              <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">Personal Information</h2>
+                              <p className="text-sm text-muted-foreground">Let's start with your basic details</p>
+                            </div>
+                            <div className="space-y-5">
+                              <FormInput label="Full Name" placeholder="Enter your full name" required error={errors.fullName?.message} {...register('fullName')} />
+                              <FormInput label="Email Address" type="email" placeholder="you@example.com" required error={errors.email?.message} {...register('email')} />
+                              <FormInput label="Phone Number" type="tel" placeholder="+234 800 000 0000" required error={errors.phone?.message} {...register('phone')} />
+                            </div>
+                          </div>
+                        </Step>
+
+                        <Step>
+                          <div className="space-y-6">
+                            <div>
+                              <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">School Information</h2>
+                              <p className="text-sm text-muted-foreground">Tell us about your institution and program</p>
+                            </div>
+                            <div className="space-y-5">
+                              <FormInput label="School Name" placeholder="e.g. University of Lagos" required error={errors.schoolName?.message} {...register('schoolName')} />
+                              <FormInput label="Program / Course of Study" placeholder="e.g. Computer Science" required error={errors.program?.message} {...register('program')} />
+                              <FormSelect label="Year of Study" required error={errors.studySemester?.message} {...register('studySemester')}>
+                                <option value="">Select year</option>
+                                <option value="1">Year 1</option>
+                                <option value="2">Year 2</option>
+                                <option value="3">Year 3</option>
+                                <option value="4">Year 4</option>
+                                <option value="5">Year 5</option>
+                                <option value="postgraduate">Postgraduate</option>
+                              </FormSelect>
+                            </div>
+                          </div>
+                        </Step>
+
+                        <Step>
+                          <div className="space-y-6">
+                            <div>
+                              <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">Payment Details</h2>
+                              <p className="text-sm text-muted-foreground">School fee amount and payment information</p>
+                            </div>
+                            <div className="space-y-5">
+                              <div className="grid grid-cols-2 gap-4">
+                                <FormInput label="Amount Needed" type="number" placeholder="150000" required error={errors.amount?.message} {...register('amount')} />
+                                <FormSelect label="Currency" required error={errors.currency?.message} {...register('currency')}>
+                                  <option value="NGN">NGN (₦)</option>
+                                  <option value="USD">USD ($)</option>
+                                  <option value="GBP">GBP (£)</option>
+                                  <option value="EUR">EUR (€)</option>
+                                </FormSelect>
+                              </div>
+                              <FormInput label="School Account Name" placeholder="Account name for school fees" required error={errors.schoolAccountName?.message} {...register('schoolAccountName')} />
+                              <FormInput label="School Account Number" placeholder="0123456789" required error={errors.schoolAccountNumber?.message} {...register('schoolAccountNumber')} />
+                              <FormInput label="School Bank Name" placeholder="e.g. First Bank" required error={errors.schoolBankName?.message} {...register('schoolBankName')} />
+                              <FormInput label="Sort Code (optional)" placeholder="e.g. 011" error={errors.schoolSortCode?.message} {...register('schoolSortCode')} />
+                            </div>
+                          </div>
+                        </Step>
+
+                        <Step>
+                          <div className="space-y-6">
+                            <div>
+                              <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">Upload Documents</h2>
+                              <p className="text-sm text-muted-foreground">Upload supporting documents for your request</p>
+                            </div>
+                            <div className="space-y-5">
+                              <div>
+                                <p className="text-sm font-semibold text-foreground mb-2">Admission Letter</p>
+                                <FileUploadCard label="Upload admission letter" description="PDF, JPG, PNG — max 5MB" file={admissionLetter} onFileChange={setAdmissionLetter} onRemove={() => setAdmissionLetter(null)} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-foreground mb-2">Fee Invoice / Breakdown</p>
+                                <FileUploadCard label="Upload fee invoice" description="PDF, JPG, PNG — max 5MB" file={feeInvoice} onFileChange={setFeeInvoice} onRemove={() => setFeeInvoice(null)} />
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground/70">Documents help us verify and process your request faster. Both are optional but recommended.</p>
+                          </div>
+                        </Step>
+
+                        <Step>
+                          <div className="space-y-6">
+                            <div>
+                              <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">Review & Submit</h2>
+                              <p className="text-sm text-muted-foreground">Please review your information before submitting</p>
+                            </div>
+                            <div className="space-y-4">
+                              <ReviewSection title="Personal">
+                                <ReviewRow label="Name" value={formValues.fullName} />
+                                <ReviewRow label="Email" value={formValues.email} />
+                                <ReviewRow label="Phone" value={formValues.phone} />
+                              </ReviewSection>
+                              <ReviewSection title="School">
+                                <ReviewRow label="School" value={formValues.schoolName} />
+                                <ReviewRow label="Program" value={formValues.program} />
+                                <ReviewRow label="Year" value={formValues.studySemester === 'postgraduate' ? 'Postgraduate' : formValues.studySemester ? `Year ${formValues.studySemester}` : ''} />
+                              </ReviewSection>
+                              <ReviewSection title="Payment">
+                                <ReviewRow label="Amount" value={formValues.amount ? `${formValues.currency} ${Number(formValues.amount).toLocaleString()}` : ''} />
+                                <ReviewRow label="Account" value={formValues.schoolAccountName} />
+                                <ReviewRow label="Account #" value={formValues.schoolAccountNumber} />
+                                <ReviewRow label="Bank" value={formValues.schoolBankName} />
+                                {formValues.schoolSortCode && <ReviewRow label="Sort Code" value={formValues.schoolSortCode} />}
+                              </ReviewSection>
+                              <ReviewSection title="Documents">
+                                <ReviewRow label="Admission Letter" value={admissionLetter?.name || 'Not uploaded'} />
+                                <ReviewRow label="Fee Invoice" value={feeInvoice?.name || 'Not uploaded'} />
+                              </ReviewSection>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-foreground mb-2">Additional Notes (optional)</label>
+                              <textarea rows={3} placeholder="Anything else you'd like us to know?" {...register('additionalNotes')}
+                                className="w-full px-4 py-3 rounded-xl border border-border/60 bg-white text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent transition-all resize-none" />
+                            </div>
+                          </div>
+                        </Step>
+                      </Stepper>
+                    </form>
+                  </>
                 )}
-
-                <form onSubmit={handleSubmit(onSubmit)}>
-                  <Stepper
-                    initialStep={1}
-                    onFinalStepCompleted={() => handleSubmit(onSubmit)()}
-                    nextButtonText="Continue"
-                    backButtonText="Back"
-                    validateStep={validateStep}
-                    isSubmitting={isSubmitting}
-                  >
-                    {/* ───────── Step 1: Personal Information ───────── */}
-                    <Step>
-                      <div className="space-y-6">
-                        <div>
-                          <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">
-                            Personal Information
-                          </h2>
-                          <p className="text-sm text-muted-foreground">
-                            Let's start with your basic details
-                          </p>
-                        </div>
-                        <div className="space-y-5">
-                          <FormInput
-                            label="Full Name"
-                            placeholder="Enter your full name"
-                            required
-                            error={errors.fullName?.message}
-                            {...register('fullName')}
-                          />
-                          <FormInput
-                            label="Email Address"
-                            type="email"
-                            placeholder="you@example.com"
-                            required
-                            error={errors.email?.message}
-                            {...register('email')}
-                          />
-                          <FormInput
-                            label="Phone Number"
-                            type="tel"
-                            placeholder="+234 800 000 0000"
-                            required
-                            error={errors.phone?.message}
-                            {...register('phone')}
-                          />
-                        </div>
-                      </div>
-                    </Step>
-
-                    {/* ───────── Step 2: School Information ───────── */}
-                    <Step>
-                      <div className="space-y-6">
-                        <div>
-                          <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">
-                            School Information
-                          </h2>
-                          <p className="text-sm text-muted-foreground">
-                            Tell us about your institution and program
-                          </p>
-                        </div>
-                        <div className="space-y-5">
-                          <FormInput
-                            label="School Name"
-                            placeholder="e.g. University of Lagos"
-                            required
-                            error={errors.schoolName?.message}
-                            {...register('schoolName')}
-                          />
-                          <FormInput
-                            label="Program / Course of Study"
-                            placeholder="e.g. Computer Science"
-                            required
-                            error={errors.program?.message}
-                            {...register('program')}
-                          />
-                          <FormSelect
-                            label="Year of Study"
-                            required
-                            error={errors.studySemester?.message}
-                            {...register('studySemester')}
-                          >
-                            <option value="">Select year</option>
-                            <option value="1">Year 1</option>
-                            <option value="2">Year 2</option>
-                            <option value="3">Year 3</option>
-                            <option value="4">Year 4</option>
-                            <option value="5">Year 5</option>
-                            <option value="postgraduate">Postgraduate</option>
-                          </FormSelect>
-                        </div>
-                      </div>
-                    </Step>
-
-                    {/* ───────── Step 3: Payment Details ───────── */}
-                    <Step>
-                      <div className="space-y-6">
-                        <div>
-                          <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">
-                            Payment Details
-                          </h2>
-                          <p className="text-sm text-muted-foreground">
-                            School fee amount and payment information
-                          </p>
-                        </div>
-                        <div className="space-y-5">
-                          <div className="grid grid-cols-2 gap-4">
-                            <FormInput
-                              label="Amount Needed"
-                              type="number"
-                              placeholder="150000"
-                              required
-                              error={errors.amount?.message}
-                              {...register('amount')}
-                            />
-                            <FormSelect
-                              label="Currency"
-                              required
-                              error={errors.currency?.message}
-                              {...register('currency')}
-                            >
-                              <option value="NGN">NGN (₦)</option>
-                              <option value="USD">USD ($)</option>
-                              <option value="GBP">GBP (£)</option>
-                              <option value="EUR">EUR (€)</option>
-                            </FormSelect>
-                          </div>
-                          <FormInput
-                            label="School Account Name"
-                            placeholder="Account name for school fees"
-                            required
-                            error={errors.schoolAccountName?.message}
-                            {...register('schoolAccountName')}
-                          />
-                          <FormInput
-                            label="School Account Number"
-                            placeholder="0123456789"
-                            required
-                            error={errors.schoolAccountNumber?.message}
-                            {...register('schoolAccountNumber')}
-                          />
-                          <FormInput
-                            label="School Bank Name"
-                            placeholder="e.g. First Bank"
-                            required
-                            error={errors.schoolBankName?.message}
-                            {...register('schoolBankName')}
-                          />
-                          <FormInput
-                            label="Sort Code (optional)"
-                            placeholder="e.g. 011"
-                            error={errors.schoolSortCode?.message}
-                            {...register('schoolSortCode')}
-                          />
-                        </div>
-                      </div>
-                    </Step>
-
-                    {/* ───────── Step 4: Documents ───────── */}
-                    <Step>
-                      <div className="space-y-6">
-                        <div>
-                          <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">
-                            Upload Documents
-                          </h2>
-                          <p className="text-sm text-muted-foreground">
-                            Upload supporting documents for your request
-                          </p>
-                        </div>
-
-                        <div className="space-y-5">
-                          {/* Admission Letter */}
-                          <div>
-                            <p className="text-sm font-semibold text-foreground mb-2">Admission Letter</p>
-                            <FileUploadCard
-                              label="Upload admission letter"
-                              description="PDF, JPG, PNG — max 5MB"
-                              file={admissionLetter}
-                              onFileChange={setAdmissionLetter}
-                              onRemove={() => setAdmissionLetter(null)}
-                            />
-                          </div>
-
-                          {/* Fee Invoice */}
-                          <div>
-                            <p className="text-sm font-semibold text-foreground mb-2">Fee Invoice / Breakdown</p>
-                            <FileUploadCard
-                              label="Upload fee invoice"
-                              description="PDF, JPG, PNG — max 5MB"
-                              file={feeInvoice}
-                              onFileChange={setFeeInvoice}
-                              onRemove={() => setFeeInvoice(null)}
-                            />
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground/70">
-                          Documents help us verify and process your request faster. Both are optional but recommended.
-                        </p>
-                      </div>
-                    </Step>
-
-                    {/* ───────── Step 5: Review & Submit ───────── */}
-                    <Step>
-                      <div className="space-y-6">
-                        <div>
-                          <h2 className="text-2xl font-serif font-semibold text-primary mb-1.5">
-                            Review & Submit
-                          </h2>
-                          <p className="text-sm text-muted-foreground">
-                            Please review your information before submitting
-                          </p>
-                        </div>
-
-                        <div className="space-y-4">
-                          <ReviewSection title="Personal">
-                            <ReviewRow label="Name" value={formValues.fullName} />
-                            <ReviewRow label="Email" value={formValues.email} />
-                            <ReviewRow label="Phone" value={formValues.phone} />
-                          </ReviewSection>
-
-                          <ReviewSection title="School">
-                            <ReviewRow label="School" value={formValues.schoolName} />
-                            <ReviewRow label="Program" value={formValues.program} />
-                            <ReviewRow
-                              label="Year"
-                              value={
-                                formValues.studySemester === 'postgraduate'
-                                  ? 'Postgraduate'
-                                  : formValues.studySemester
-                                    ? `Year ${formValues.studySemester}`
-                                    : ''
-                              }
-                            />
-                          </ReviewSection>
-
-                          <ReviewSection title="Payment">
-                            <ReviewRow
-                              label="Amount"
-                              value={
-                                formValues.amount
-                                  ? `${formValues.currency} ${Number(formValues.amount).toLocaleString()}`
-                                  : ''
-                              }
-                            />
-                            <ReviewRow label="Account" value={formValues.schoolAccountName} />
-                            <ReviewRow label="Account #" value={formValues.schoolAccountNumber} />
-                            <ReviewRow label="Bank" value={formValues.schoolBankName} />
-                            {formValues.schoolSortCode && (
-                              <ReviewRow label="Sort Code" value={formValues.schoolSortCode} />
-                            )}
-                          </ReviewSection>
-
-                          <ReviewSection title="Documents">
-                            <ReviewRow
-                              label="Admission Letter"
-                              value={admissionLetter?.name || 'Not uploaded'}
-                            />
-                            <ReviewRow
-                              label="Fee Invoice"
-                              value={feeInvoice?.name || 'Not uploaded'}
-                            />
-                          </ReviewSection>
-                        </div>
-
-                        {/* Additional notes */}
-                        <div>
-                          <label className="block text-sm font-semibold text-foreground mb-2">
-                            Additional Notes (optional)
-                          </label>
-                          <textarea
-                            rows={3}
-                            placeholder="Anything else you'd like us to know?"
-                            {...register('additionalNotes')}
-                            className="w-full px-4 py-3 rounded-xl border border-border/60 bg-white text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-4 focus:ring-accent/10 focus:border-accent transition-all resize-none"
-                          />
-                        </div>
-                      </div>
-                    </Step>
-                  </Stepper>
-                </form>
               </div>
             </motion.div>
           </div>
@@ -606,15 +446,11 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
   )
 }
 
-/* ─── Review Helpers ─── */
-
 function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-border/30 overflow-hidden">
       <div className="px-4 py-2.5 bg-muted/30 border-b border-border/20">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          {title}
-        </h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
       </div>
       <div className="divide-y divide-border/20">{children}</div>
     </div>
@@ -625,9 +461,7 @@ function ReviewRow({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex justify-between px-4 py-2.5">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium text-foreground text-right max-w-[60%] truncate">
-        {value || '—'}
-      </span>
+      <span className="text-sm font-medium text-foreground text-right max-w-[60%] truncate">{value || '—'}</span>
     </div>
   )
 }

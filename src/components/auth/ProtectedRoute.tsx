@@ -1,59 +1,46 @@
-import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { adminAuthService } from '../../features/admin/admin.auth.service'
-
-// DON'T IMPORT AdminUser - define it inline to avoid import issues
-interface User {
-  id: string
-  email: string
-}
+import { useAuth } from '../../context/AuthContext'
+import type { UserRole } from '../../features/auth/auth.service'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
+  requiredRole?: UserRole | UserRole[]
+  /** Where to redirect if not authenticated */
+  redirectTo?: string
 }
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const [user, setUser] = useState<User | null | undefined>(undefined)
-  const [isLoading, setIsLoading] = useState(true)
+export default function ProtectedRoute({
+  children,
+  requiredRole,
+  redirectTo = '/',
+}: ProtectedRouteProps) {
+  const { user, isLoading } = useAuth()
 
-  useEffect(() => {
-    // Check session on mount
-    const checkSession = async () => {
-      const { user } = await adminAuthService.getSession()
-      setUser(user)
-      setIsLoading(false)
-    }
-
-    checkSession()
-
-    // Listen for auth changes
-    const { data: { subscription } } = adminAuthService.onAuthStateChange((user) => {
-      setUser(user)
-      setIsLoading(false)
-    })
-
-    return () => {
-      subscription?.unsubscribe()
-    }
-  }, [])
-
-  // Show loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-accent/20 border-t-accent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="w-10 h-10 border-4 border-accent/20 border-t-accent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
   }
 
-  // Redirect to login if not authenticated
+  // Not logged in
   if (!user) {
-    return <Navigate to="/admin/login" replace />
+    return <Navigate to={redirectTo} replace />
   }
 
-  // Render protected content
+  // Role check
+  if (requiredRole) {
+    const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
+    if (!roles.includes(user.role)) {
+      // Wrong role — send them to their correct home
+      const correctPath = user.role === 'user' ? '/dashboard' : '/admin/dashboard'
+      return <Navigate to={correctPath} replace />
+    }
+  }
+
   return <>{children}</>
 }
