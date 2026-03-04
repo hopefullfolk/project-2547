@@ -1,115 +1,105 @@
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
-export default function Footer() {
+interface FooterProps {
+  onOpenModal: () => void
+  onCheckStatus: () => void
+}
+
+function AccordionSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border-t border-white/10">
+      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between py-5 text-left">
+        <span className="text-xs font-bold tracking-[0.15em] uppercase text-white">{title}</span>
+        <ChevronDown className={`w-4 h-4 text-white/50 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`overflow-hidden transition-all duration-300 ${open ? 'max-h-60 mb-4' : 'max-h-0'}`}>
+        <ul className="space-y-3 pb-2">{children}</ul>
+      </div>
+    </div>
+  )
+}
+
+export default function Footer({ onOpenModal, onCheckStatus }: FooterProps) {
   const navigate = useNavigate()
 
-  const handleNavClick = (href: string) => {
-    if (href.startsWith('#')) {
-      navigate('/')
-      setTimeout(() => {
-        const element = document.querySelector(href)
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }
-      }, 100)
-    } else {
-      navigate(href)
-      window.scrollTo(0, 0)
-    }
+  const scrollTo = (id: string) => {
+    const el = document.querySelector(id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    else { navigate('/'); setTimeout(() => document.querySelector(id)?.scrollIntoView({ behavior: 'smooth' }), 150) }
   }
 
   return (
     <footer className="bg-primary text-white">
-      <div className="max-w-[1200px] mx-auto px-8 lg:px-12 py-16 lg:py-20">
-        
-        {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
-          
-          {/* Brand Column */}
-          <div className="md:col-span-1">
-            <h3 className="text-2xl font-serif font-bold mb-3">
-              Hope Catalyst
-            </h3>
-            <p className="text-white/70 text-sm leading-relaxed max-w-xs">
-              Supporting Nigerian students with verified school fee payments.
+      <div className="max-w-[1200px] mx-auto px-8 lg:px-12">
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 py-16 lg:py-20">
+
+          {/* Left — Brand */}
+          <div>
+            <div className="mb-8">
+              <img src="/logo.svg" alt="Hope Catalyst" className="h-9 w-auto" />
+            </div>
+            <p className="text-sm text-white/60 leading-relaxed max-w-sm">
+              Supporting Nigerian students with transparent, verified school fee payments. Every naira, accounted for.
             </p>
           </div>
 
-          {/* Product Links */}
-          <div>
-            <h4 className="text-xs font-bold tracking-widest uppercase text-white/50 mb-4">
-              Product
-            </h4>
-            <ul className="space-y-2.5">
-              <li>
-                <button
-                  onClick={() => handleNavClick('#how-it-works')}
-                  className="text-white/80 hover:text-white text-sm transition-colors"
-                >
-                  How It Works
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => handleNavClick('#transparency')}
-                  className="text-white/80 hover:text-white text-sm transition-colors"
-                >
-                  Transparency
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => handleNavClick('/check-status')}
-                  className="text-white/80 hover:text-white text-sm transition-colors"
-                >
-                  Check Status
-                </button>
-              </li>
-            </ul>
-          </div>
+          {/* Right — Accordions */}
+          <div className="lg:pl-16">
 
-          {/* Support Links */}
-          <div>
-            <h4 className="text-xs font-bold tracking-widest uppercase text-white/50 mb-4">
-              Support
-            </h4>
-            <ul className="space-y-2.5">
+            <AccordionSection title="How It Works">
               <li>
-                <a
-                  href="mailto:support@hopecatalyst.com"
-                  className="text-white/80 hover:text-white text-sm transition-colors"
-                >
+                <button onClick={onOpenModal} className="text-sm text-white/60 hover:text-white transition-colors text-left">
+                  Submit a Request
+                </button>
+              </li>
+              <li>
+                <button onClick={onCheckStatus} className="text-sm text-white/60 hover:text-white transition-colors text-left">
+                  Check Your Status
+                </button>
+              </li>
+              <li>
+                <button onClick={() => scrollTo('#how-it-works')} className="text-sm text-white/60 hover:text-white transition-colors text-left">
+                  Payment Process
+                </button>
+              </li>
+            </AccordionSection>
+
+            <AccordionSection title="Organisation">
+              <li>
+                <button onClick={() => navigate('/about')} className="text-sm text-white/60 hover:text-white transition-colors text-left">
+                  About Hope Catalyst
+                </button>
+              </li>
+              <li>
+                <a href="mailto:support@hopecatalyst.org" className="text-sm text-white/60 hover:text-white transition-colors">
                   Contact Us
                 </a>
               </li>
-              <li>
-                <a
-                  href="mailto:support@hopecatalyst.com"
-                  className="text-white/80 hover:text-white text-sm transition-colors"
-                >
-                  Help Center
-                </a>
-              </li>
-            </ul>
+            </AccordionSection>
+
+            <AccordionSection title="Legal">
+              <li><button onClick={() => navigate('/privacy')} className="text-sm text-white/60 hover:text-white transition-colors text-left">Privacy Policy</button></li>
+              <li><button onClick={() => navigate('/terms')} className="text-sm text-white/60 hover:text-white transition-colors text-left">Terms of Service</button></li>
+              <li><button onClick={() => navigate('/data-protection')} className="text-sm text-white/60 hover:text-white transition-colors text-left">Data Protection</button></li>
+            </AccordionSection>
+
+            <div className="border-t border-white/10" />
           </div>
         </div>
 
-        {/* Bottom Bar */}
-        <div className="pt-8 border-t border-white/10">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-white/50">
-              © 2025 Hope Catalyst Scholarship. All Rights Reserved.
-            </p>
-            <div className="flex items-center gap-6">
-              <a href="#" className="text-xs text-white/50 hover:text-white/80 transition-colors">
-                Privacy Policy
-              </a>
-              <a href="#" className="text-xs text-white/50 hover:text-white/80 transition-colors">
-                Terms of Service
-              </a>
-            </div>
-          </div>
+        {/* Bottom bar */}
+        <div className="border-t border-white/10 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-white/30">© {new Date().getFullYear()} Hope Catalyst. All rights reserved.</p>
+          <a href="https://instagram.com/osegonte.webdev" target="_blank" rel="noreferrer"
+            className="text-xs text-white/20 hover:text-white/50 transition-colors tracking-widest uppercase">
+            osegonte.webdev
+          </a>
         </div>
+
       </div>
     </footer>
   )

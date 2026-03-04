@@ -114,7 +114,8 @@ export const requestService = {
         admission_letter_url: admissionLetterUrl || null,
         fee_invoice_url: feeInvoiceUrl || null,
         additional_notes: data.additionalNotes || null,
-        status: 'pending'
+        status: 'pending',
+        user_id: data.userId ?? null
       }
 
       console.log('💾 SERVICE: Inserting into Supabase...')

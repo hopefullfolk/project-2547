@@ -20,7 +20,7 @@ export const adminService = {
     if (error) { console.error(error); return null }
     return data
   },
-  async updateStatus(id: string, status: 'pending' | 'approved' | 'rejected' | 'paid', adminNotes?: string) {
+  async updateStatus(id: string, status: 'pending' | 'approved' | 'rejected' | 'paid' | 'awaiting_results', adminNotes?: string) {
     const { error } = await supabase.from('requests').update({ status, admin_notes: adminNotes ?? null, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) return { success: false, error: error.message }
     return { success: true }
@@ -52,5 +52,20 @@ export const adminService = {
     const { data, error } = await supabase.from('request_status_history').select('*').eq('request_id', requestId).order('created_at', { ascending: true })
     if (error) { console.error(error); return [] }
     return data ?? []
+  },
+  async getRequestDocs(requestId: string) {
+    const { data, error } = await supabase.from('request_documents').select('*').eq('request_id', requestId).order('uploaded_at', { ascending: false })
+    if (error) { console.error(error); return [] }
+    return data ?? []
+  },
+  async deleteRequest(id: string) {
+    const { error } = await supabase.from('requests').delete().eq('id', id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  },
+  async deleteArchivedRequest(id: string) {
+    const { error } = await supabase.from('archived_requests').delete().eq('id', id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
   },
 }

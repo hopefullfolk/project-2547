@@ -23,6 +23,9 @@ export interface RequestFormData {
   
   // Additional
   additionalNotes?: string
+
+  // Auth
+  userId?: string | null
 }
 
 export interface RequestSubmission {
@@ -56,6 +59,7 @@ export interface RequestSubmission {
   additional_notes: string | null
   
   // Status tracking
-  status: 'pending' | 'approved' | 'rejected' | 'paid'
+  status: 'pending' | 'approved' | 'rejected' | 'paid' | 'awaiting_results'
   admin_notes: string | null
+  user_id: string | null
 }

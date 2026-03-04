@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, FileText, CheckCircle, XCircle, DollarSign, Archive,
-  ExternalLink, Clock, User, School, CreditCard, MessageSquare, ChevronDown
+  ExternalLink, Clock, User, School, CreditCard, MessageSquare, ChevronDown, ClipboardList
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { adminService } from '../../features/admin/admin.service'
@@ -12,10 +12,11 @@ import type { RequestSubmission } from '../../features/request/request.types'
 import { formatCurrency, formatDate, formatDatetime } from '../../lib/utils'
 
 const STATUS_CFG = {
-  pending:  { label: 'Pending',  Icon: Clock,        color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200' },
-  approved: { label: 'Approved', Icon: CheckCircle,  color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200'  },
-  rejected: { label: 'Rejected', Icon: XCircle,      color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-200'  },
-  paid:     { label: 'Paid',     Icon: DollarSign,   color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200'},
+  pending:          { label: 'Pending',          Icon: Clock,          color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200' },
+  approved:         { label: 'Approved',         Icon: CheckCircle,    color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200'  },
+  rejected:         { label: 'Rejected',         Icon: XCircle,        color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-200'  },
+  paid:             { label: 'Paid',             Icon: DollarSign,     color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200'},
+  awaiting_results: { label: 'Awaiting Results', Icon: ClipboardList,  color: 'text-purple-600',  bg: 'bg-purple-50',  border: 'border-purple-200'},
 }
 
 function Section({ icon: Icon, title, children }: {
@@ -60,11 +61,12 @@ function DocLink({ label, url }: { label: string; url?: string | null }) {
   )
 }
 
-type NewStatus = 'approved' | 'rejected' | 'paid'
+type NewStatus = 'approved' | 'rejected' | 'paid' | 'awaiting_results'
 const ACTION_BTNS: { status: NewStatus; label: string; Icon: any; color: string }[] = [
-  { status: 'approved', label: 'Approve',  Icon: CheckCircle, color: 'bg-blue-500 hover:bg-blue-600 text-white' },
-  { status: 'rejected', label: 'Reject',   Icon: XCircle,     color: 'bg-rose-500 hover:bg-rose-600 text-white' },
-  { status: 'paid',     label: 'Mark Paid',Icon: DollarSign,  color: 'bg-emerald-500 hover:bg-emerald-600 text-white' },
+  { status: 'approved',         label: 'Approve',         Icon: CheckCircle,   color: 'bg-blue-500 hover:bg-blue-600 text-white' },
+  { status: 'awaiting_results', label: 'Request Results', Icon: ClipboardList, color: 'bg-purple-500 hover:bg-purple-600 text-white' },
+  { status: 'rejected',         label: 'Reject',          Icon: XCircle,       color: 'bg-rose-500 hover:bg-rose-600 text-white' },
+  { status: 'paid',             label: 'Mark Paid',       Icon: DollarSign,    color: 'bg-emerald-500 hover:bg-emerald-600 text-white' },
 ]
 
 export default function RequestReview() {
@@ -74,6 +76,7 @@ export default function RequestReview() {
 
   const [request, setRequest] = useState<RequestSubmission | null>(null)
   const [history, setHistory] = useState<any[]>([])
+  const [uploadedDocs, setUploadedDocs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [adminNotes, setAdminNotes] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
@@ -85,9 +88,11 @@ export default function RequestReview() {
     Promise.all([
       adminService.getRequest(id),
       adminService.getStatusHistory(id),
-    ]).then(([req, hist]) => {
+      adminService.getRequestDocs(id),
+    ]).then(([req, hist, docs]) => {
       if (req) { setRequest(req); setAdminNotes(req.admin_notes ?? '') }
       setHistory(hist)
+      setUploadedDocs(docs)
       setIsLoading(false)
     })
   }, [id])
@@ -105,16 +110,18 @@ export default function RequestReview() {
     if (!result.success) { setUpdateMsg('Update failed: ' + result.error); setIsUpdating(false); return }
 
     // Reload
-    const [updated, hist] = await Promise.all([
+    const [updated, hist, docs] = await Promise.all([
       adminService.getRequest(id),
       adminService.getStatusHistory(id),
+      adminService.getRequestDocs(id),
     ])
     if (updated) setRequest(updated)
     setHistory(hist)
+    setUploadedDocs(docs)
     setUpdateMsg(`Status updated to ${status}`)
 
     // Notify applicant (non-blocking)
-    emailService.sendStatusUpdate(updated!, status).catch(console.error)
+    emailService.sendStatusUpdateEmail(updated!).catch(console.error)
 
     setIsUpdating(false)
   }
@@ -124,6 +131,15 @@ export default function RequestReview() {
     const reason = request.status as 'paid' | 'rejected'
     const result = await adminService.archiveRequest(request, reason, user.id)
     if (!result.success) { setUpdateMsg('Archive failed: ' + result.error); return }
+    navigate('/admin/dashboard')
+  }
+
+  const handleDelete = async () => {
+    if (!request) return
+    const confirmed = window.confirm(`Permanently delete this request from ${request.full_name}? This cannot be undone.`)
+    if (!confirmed) return
+    const result = await adminService.deleteRequest(request.id)
+    if (!result.success) { setUpdateMsg('Delete failed: ' + result.error); return }
     navigate('/admin/dashboard')
   }
 
@@ -206,6 +222,30 @@ export default function RequestReview() {
                   <DocLink label="Admission Letter" url={request.admission_letter_url} />
                   <DocLink label="Fee Invoice" url={request.fee_invoice_url} />
                 </div>
+
+                {uploadedDocs.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
+                      Student Uploaded Documents
+                    </p>
+                    <div className="space-y-2">
+                      {uploadedDocs.map((doc: any) => (
+                        <a key={doc.id} href={doc.file_url} target="_blank" rel="noreferrer"
+                          className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors group">
+                          <div className="flex items-center gap-3">
+                            <FileText className="w-4 h-4 text-purple-600" />
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{doc.label || doc.document_type}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{doc.document_type.replace('_', ' ')}</p>
+                            </div>
+                          </div>
+                          <ExternalLink className="w-4 h-4 text-purple-400 group-hover:text-purple-600 transition-colors" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {request.additional_notes && (
                   <div className="mt-4 p-4 bg-muted/40 rounded-xl">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Applicant Note</p>
@@ -308,6 +348,20 @@ export default function RequestReview() {
                 </div>
               </motion.div>
             )}
+
+            {/* Permanent delete */}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+              <div className="bg-white rounded-2xl border border-rose-100 shadow-sm p-6">
+                <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2">Danger Zone</p>
+                <p className="text-xs text-muted-foreground mb-4">Permanently delete this request and all associated data. Cannot be undone.</p>
+                <button
+                  onClick={handleDelete}
+                  className="w-full h-10 rounded-xl text-sm font-semibold bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-600 border border-rose-200 hover:border-rose-500 transition-all flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" /> Delete Request
+                </button>
+              </div>
+            </motion.div>
           </div>
         </div>
       </div>

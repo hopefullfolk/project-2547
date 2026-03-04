@@ -13,6 +13,12 @@ import ProtectedRoute from './components/auth/ProtectedRoute'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import RequestReview from './pages/admin/RequestReview'
 import AdminUsers from './pages/admin/AdminUsers'
+import ArchivedRequests from './pages/admin/ArchivedRequests'
+import ResetPassword from './pages/ResetPassword'
+import About from './pages/About'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsOfService from './pages/TermsOfService'
+import DataProtection from './pages/DataProtection'
 
 type Intent = 'submit' | 'check' | null
 
@@ -54,19 +60,24 @@ function AppRoutes() {
         {/* Public */}
         <Route path="/" element={
           <>
-            <Header onOpenModal={() => handleIntent('submit')} />
+            <Header onOpenModal={() => handleIntent('submit')} onCheckStatus={() => handleIntent('check')} onOpenAuth={() => setAuthOpen(true)} />
             <Home onOpenModal={() => handleIntent('submit')} />
-            <Footer />
+            <Footer onOpenModal={() => handleIntent('submit')} onCheckStatus={() => handleIntent('check')} />
           </>
         } />
         <Route path="/check-status" element={
           <>
-            <Header onOpenModal={() => handleIntent('submit')} />
+            <Header onOpenModal={() => handleIntent('submit')} onCheckStatus={() => handleIntent('check')} onOpenAuth={() => setAuthOpen(true)} />
             <CheckStatus />
-            <Footer />
+            <Footer onOpenModal={() => handleIntent('submit')} onCheckStatus={() => handleIntent('check')} />
           </>
         } />
         <Route path="/debug" element={<DebugPage />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/data-protection" element={<DataProtection />} />
 
         {/* Admin routes */}
         <Route path="/admin/dashboard" element={
@@ -77,6 +88,9 @@ function AppRoutes() {
         } />
         <Route path="/admin/users" element={
           <ProtectedRoute requiredRole={['admin', 'super_admin']}><AdminUsers /></ProtectedRoute>
+        } />
+        <Route path="/admin/archived" element={
+          <ProtectedRoute requiredRole={['admin', 'super_admin']}><ArchivedRequests /></ProtectedRoute>
         } />
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -5,9 +5,11 @@ interface MobileMenuProps {
   isOpen: boolean
   onClose: () => void
   onOpenModal: () => void
+  onCheckStatus: () => void
+  onOpenAuth: () => void
 }
 
-export default function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuProps) {
+export default function MobileMenu({ isOpen, onClose, onOpenModal, onCheckStatus, onOpenAuth }: MobileMenuProps) {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -38,6 +40,16 @@ export default function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuP
   const handleSubmitClick = () => {
     onClose()
     onOpenModal()
+  }
+
+  const handleCheckStatusClick = () => {
+    onClose()
+    onCheckStatus()
+  }
+
+  const handleAuthClick = () => {
+    onClose()
+    onOpenAuth()
   }
 
   return (
@@ -79,14 +91,20 @@ export default function MobileMenu({ isOpen, onClose, onOpenModal }: MobileMenuP
                 How It Works
               </button>
               <button
-                onClick={() => handleNavClick('#transparency')}
+                onClick={handleCheckStatusClick}
                 className="px-4 py-3 text-foreground hover:text-accent hover:bg-accent/5 rounded-lg transition-all font-medium text-left"
               >
-                Transparency
+                Check My Status
               </button>
-              
+
               <div className="h-px bg-border my-4" />
-              
+
+              <button
+                onClick={handleAuthClick}
+                className="px-4 py-3 text-foreground hover:text-accent hover:bg-accent/5 rounded-lg transition-all font-medium text-left"
+              >
+                Sign In / Sign Up
+              </button>
               <button
                 onClick={handleSubmitClick}
                 className="px-4 py-3 bg-accent text-white hover:bg-accent/90 rounded-lg transition-all font-semibold text-center"

@@ -94,7 +94,7 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
 }
 
 export function getRedirectPath(role: UserRole): string {
-  return role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : '/dashboard'
+  return role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : '/'
 }
 
 export async function resetPassword(
@@ -104,6 +104,18 @@ export async function resetPassword(
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch {
+    return { success: false, error: 'An unexpected error occurred' }
+  }
+}
+
+export async function updatePassword(
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch {
@@ -121,4 +133,5 @@ export const authService = {
   onAuthStateChange,
   getRedirectPath,
   resetPassword,
+  updatePassword,
 }

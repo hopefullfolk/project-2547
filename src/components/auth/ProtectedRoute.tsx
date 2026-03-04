@@ -37,7 +37,7 @@ export default function ProtectedRoute({
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
     if (!roles.includes(user.role)) {
       // Wrong role — send them to their correct home
-      const correctPath = user.role === 'user' ? '/dashboard' : '/admin/dashboard'
+      const correctPath = user.role === 'user' ? '/' : '/admin/dashboard'
       return <Navigate to={correctPath} replace />
     }
   }

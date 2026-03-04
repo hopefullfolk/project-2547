@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import type { RequestFormData } from './request.types'
 import { fullRequestSchema } from './request.schema'
 import { requestService } from './request.service'
@@ -28,6 +29,7 @@ interface RequestFormProps {
 
 export default function RequestForm({ onSuccess }: RequestFormProps) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -79,7 +81,7 @@ export default function RequestForm({ onSuccess }: RequestFormProps) {
         return
       }
       
-      const result = await requestService.submitRequest(data)
+      const result = await requestService.submitRequest({ ...data, userId: user?.id ?? null })
       
       if (result.success) {
         if (onSuccess) {

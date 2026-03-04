@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Clock, CheckCircle, XCircle, DollarSign, FileText, ExternalLink, Upload, Trash2 } from 'lucide-react'
+import { X, Clock, CheckCircle, XCircle, DollarSign, FileText, ExternalLink, Upload, Trash2, ClipboardList, AlertCircle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 
 const STATUS_CFG = {
-  pending:  { label: 'Under Review', Icon: Clock,        color: 'text-amber-600',   bg: 'bg-amber-50',    border: 'border-amber-200',  step: 1 },
-  approved: { label: 'Approved',     Icon: CheckCircle,  color: 'text-blue-600',    bg: 'bg-blue-50',     border: 'border-blue-200',   step: 2 },
-  paid:     { label: 'Payment Sent', Icon: DollarSign,   color: 'text-emerald-600', bg: 'bg-emerald-50',  border: 'border-emerald-200',step: 3 },
-  rejected: { label: 'Not Approved', Icon: XCircle,      color: 'text-rose-600',    bg: 'bg-rose-50',     border: 'border-rose-200',   step: 0 },
+  pending:          { label: 'Under Review',     Icon: Clock,         color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200',   step: 1 },
+  approved:         { label: 'Approved',         Icon: CheckCircle,   color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200',    step: 2 },
+  paid:             { label: 'Payment Sent',     Icon: DollarSign,    color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', step: 3 },
+  rejected:         { label: 'Not Approved',     Icon: XCircle,       color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-200',    step: 0 },
+  awaiting_results: { label: 'Results Required', Icon: ClipboardList, color: 'text-purple-600',  bg: 'bg-purple-50',  border: 'border-purple-200',  step: 1 },
 }
 
 const PROGRESS_STEPS = ['Submitted', 'Under Review', 'Approved', 'Payment Sent']
@@ -42,36 +43,69 @@ export default function StatusModal({ isOpen, onClose, onSubmitNew }: Props) {
     if (!user) return
     setIsLoading(true)
 
-    const [{ data: req }, { data: hist }, { data: docs }] = await Promise.all([
-      supabase.from('requests').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('request_status_history').select('*').order('created_at', { ascending: true }),
-      supabase.from('request_documents').select('*').order('created_at', { ascending: false }),
-    ])
+    // Step 1: get the user's latest request
+    const { data: req } = await supabase
+      .from('requests')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
     setRequest(req)
-    if (req && hist) setHistory(hist.filter((h: any) => h.request_id === req.id))
-    if (req && docs) setDocuments(docs.filter((d: any) => d.request_id === req.id))
+
+    // Step 2: only fetch related data if we have a request
+    if (req) {
+      const [{ data: hist }, { data: docs }] = await Promise.all([
+        supabase.from('request_status_history')
+          .select('*')
+          .eq('request_id', req.id)
+          .order('created_at', { ascending: true }),
+        supabase.from('request_documents')
+          .select('*')
+          .eq('request_id', req.id)
+          .order('uploaded_at', { ascending: false }),
+      ])
+      setHistory(hist ?? [])
+      setDocuments(docs ?? [])
+    } else {
+      setHistory([])
+      setDocuments([])
+    }
+
     setIsLoading(false)
   }
+
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   useEffect(() => { if (isOpen) load() }, [isOpen, user])
 
   const handleUpload = async (file: File) => {
     if (!request || !user) return
     setIsUploading(true)
+    setUploadStatus('idle')
     const ext = file.name.split('.').pop()
     const fileName = `${user.id}/${request.id}/${uploadType}-${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('user-uploads').upload(fileName, file)
-    if (!error) {
-      const { data } = supabase.storage.from('user-uploads').getPublicUrl(fileName)
-      await supabase.from('request_documents').insert({
-        request_id: request.id,
-        user_id: user.id,
-        document_type: uploadType,
-        label: uploadLabel || file.name,
-        file_url: data.publicUrl,
-      })
+    const { error: storageError } = await supabase.storage.from('user-uploads').upload(fileName, file)
+    if (storageError) {
+      console.error('Upload error:', storageError)
+      setUploadStatus('error')
+      setIsUploading(false)
+      return
+    }
+    const { data } = supabase.storage.from('user-uploads').getPublicUrl(fileName)
+    const { error: dbError } = await supabase.from('request_documents').insert({
+      request_id: request.id,
+      user_id: user.id,
+      document_type: uploadType,
+      label: uploadLabel || file.name,
+      file_url: data.publicUrl,
+    })
+    if (dbError) {
+      console.error('DB insert error:', dbError)
+      setUploadStatus('error')
+    } else {
+      setUploadStatus('success')
       setUploadLabel('')
       await load()
     }
@@ -193,6 +227,27 @@ export default function StatusModal({ isOpen, onClose, onSubmitNew }: Props) {
 
                     {tab === 'status' && (
                       <div className="p-6 space-y-4">
+                        {/* Action required banner for awaiting_results */}
+                        {request.status === 'awaiting_results' && (
+                          <div className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                            <div className="flex items-start gap-3">
+                              <AlertCircle className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-bold text-purple-800 mb-1">Action Required — Upload Your Results</p>
+                                <p className="text-xs text-purple-700 leading-relaxed mb-3">
+                                  Hope Catalyst needs your academic results before your request can be approved. Please upload them in the Documents tab.
+                                </p>
+                                <button
+                                  onClick={() => setTab('docs')}
+                                  className="h-8 px-4 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                                >
+                                  Upload Results →
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {request.admin_notes && (
                           <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl">
                             <p className="text-xs font-bold text-accent uppercase tracking-wider mb-1.5">Note from Hope Catalyst</p>
@@ -265,8 +320,18 @@ export default function StatusModal({ isOpen, onClose, onSubmitNew }: Props) {
                               ? <><div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin mr-2" />Uploading...</>
                               : <><Upload className="w-4 h-4 mr-2" />Choose file</>}
                             <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" disabled={isUploading}
-                              onChange={e => { if (e.target.files?.[0]) handleUpload(e.target.files[0]) }} />
+                              onChange={e => { if (e.target.files?.[0]) { setUploadStatus('idle'); handleUpload(e.target.files[0]) } }} />
                           </label>
+                          {uploadStatus === 'success' && (
+                            <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5">
+                              <CheckCircle className="w-3.5 h-3.5" /> Document uploaded successfully
+                            </p>
+                          )}
+                          {uploadStatus === 'error' && (
+                            <p className="text-xs text-rose-600 font-medium flex items-center gap-1.5">
+                              <XCircle className="w-3.5 h-3.5" /> Upload failed — please try again
+                            </p>
+                          )}
                         </div>
 
                         {documents.length > 0 ? (
