@@ -172,7 +172,7 @@ export const requestService = {
       const fileName = `${prefix}-${timestamp}-${random}.${fileExt}`
 
       // Upload file
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('request-documents')
         .upload(fileName, file, {
           cacheControl: '3600',

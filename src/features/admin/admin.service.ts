@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { RequestSubmission } from '../request/request.types'
+
 
 export interface AdminProfile {
   id: string

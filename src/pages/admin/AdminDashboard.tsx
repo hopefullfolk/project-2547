@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   FileText, Clock, CheckCircle, XCircle, DollarSign,
-  TrendingUp, LogOut, Archive, Users, RefreshCw, ArrowUpRight, Search
+  LogOut, Archive, Users, RefreshCw, ArrowUpRight, Search
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { adminService } from '../../features/admin/admin.service'
-import { emailService } from '../../lib/email'
 import type { RequestSubmission } from '../../features/request/request.types'
 import { formatCurrency, formatDate } from '../../lib/utils'
 

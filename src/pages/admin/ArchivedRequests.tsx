@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Archive, Trash2, FileText, RefreshCw, Search } from 'lucide-react'
+import { ArrowLeft, Archive, Trash2, RefreshCw, Search } from 'lucide-react'
 import { adminService } from '../../features/admin/admin.service'
 import { formatCurrency, formatDate } from '../../lib/utils'
 

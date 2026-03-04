@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 import { adminService } from '../../features/admin/admin.service'
 import { emailService } from '../../lib/email'
 import type { RequestSubmission } from '../../features/request/request.types'
-import { formatCurrency, formatDate, formatDatetime } from '../../lib/utils'
+import { formatCurrency, formatDatetime } from '../../lib/utils'
 
 const STATUS_CFG = {
   pending:          { label: 'Pending',          Icon: Clock,          color: 'text-amber-600',   bg: 'bg-amber-50',   border: 'border-amber-200' },
@@ -260,7 +260,7 @@ export default function RequestReview() {
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
                 <Section icon={Clock} title="Status History">
                   <div className="space-y-3">
-                    {history.map((h, i) => (
+                    {history.map((h) => (
                       <div key={h.id} className="flex items-start gap-3">
                         <div className="mt-1 flex-shrink-0">
                           <div className="w-2 h-2 rounded-full bg-accent" />

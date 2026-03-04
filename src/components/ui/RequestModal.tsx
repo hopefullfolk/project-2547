@@ -167,8 +167,8 @@ export default function RequestModal({ isOpen, onClose, onCheckStatus }: Request
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
-  const { register, handleSubmit, watch, trigger, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(requestSchema),
+  const { register, handleSubmit, watch, trigger, reset, formState: { errors } } = useForm<FormData, unknown, FormData>({
+    resolver: zodResolver(requestSchema) as any,
     mode: 'onChange',
     defaultValues: {
       currency: 'NGN',

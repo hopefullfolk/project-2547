@@ -9,7 +9,7 @@ interface Step4DocumentsProps {
   setValue: UseFormSetValue<RequestFormData>
 }
 
-export default function Step4Documents({ register, errors, setValue }: Step4DocumentsProps) {
+export default function Step4Documents({ setValue }: Step4DocumentsProps) {
   const [admissionFileName, setAdmissionFileName] = useState<string>('')
   const [invoiceFileName, setInvoiceFileName] = useState<string>('')
 
